@@ -9,61 +9,101 @@ import javax.xml.parsers.SAXParser
 import org.xml.sax.helpers.DefaultHandler
 import org.xml.sax.Attributes
 
-trait SAXElement
-case class ElementStart(uri: String, localName: String, qName: String, attributes: Attributes) extends SAXElement
-case class ElementEnd(uri: String, localName: String, qName: String) extends SAXElement
-case object DocumentEnd extends SAXElement
+trait SAXEvent
 
-class Handler(outside: SAXElement ⇒ Future[Unit]) extends DefaultHandler {
+case class Characters(content: String) extends SAXEvent
+case class ElementStart(uri: String, localName: String, qName: String, attributes: Attributes) extends SAXEvent
+case class ElementEnd(uri: String, localName: String, qName: String) extends SAXEvent
+case object DocumentStart extends SAXEvent
+case object DocumentEnd extends SAXEvent
+
+class Handler(outside: SAXEvent ⇒ Future[Unit]) extends DefaultHandler {
   val timeoutLimit = (290 * 365).days
 
+  private def passEvent(event: SAXEvent): Unit = {
+    Await.ready(outside(event), timeoutLimit)
+  }
+
+  override def characters(chars: Array[Char], start: Int, length: Int): Unit = {
+    passEvent(Characters(new String(chars, start, length)))
+  }
+
   override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit = {
-    Await.ready(
-      outside(ElementStart(uri, localName, qName, attributes)),
-      timeoutLimit
-    )
+    passEvent(ElementStart(uri, localName, qName, attributes))
+  }
+
+  override def endElement(uri: String, localName: String, qName: String): Unit = {
+    passEvent(ElementEnd(uri, localName, qName))
+  }
+
+  override def startDocument(): Unit = {
+    passEvent(DocumentStart)
   }
 
   override def endDocument(): Unit = {
-    outside(DocumentEnd)
+    passEvent(DocumentEnd)
   }
 }
 
-class SAXIterator(input: InputStream) extends Iterator[SAXElement] {
+class SAXIterator(input: InputStream) extends Iterator[SAXEvent] {
 
   val parser: SAXParser = SAXParserFactory.newInstance.newSAXParser()
   var depleted = false
   var started = false
-  var nextElement = Promise[SAXElement]
+  var promisedEvent = Promise[SAXEvent]
   var lock = Promise[Unit]
 
-  def extract(element: SAXElement): Future[Unit] = {
-    nextElement.complete(Success(element))
-    if (element == DocumentEnd) {
+  def log[A](message: String, fn: () ⇒ A): A = {
+    val startTime = System.nanoTime
+    val result = fn()
+    val endTime = System.nanoTime
+    println(s"$message (${(endTime - startTime) / 1000.0 / 1000.0}ms)")
+    result
+  }
+
+  def receiveEvent(event: SAXEvent): Future[Unit] = {
+    println(s"received event [${event.getClass.getSimpleName}]")
+    promisedEvent.success(event)
+    if (event == DocumentEnd) {
       depleted = true
     }
     lock.future
   }
 
-  override def hasNext: Boolean = !depleted
-  override def next(): SAXElement = {
+  def startParsing(): Future[Unit] = {
+    started = true
+    val handler = new Handler(receiveEvent)
+    import ExecutionContext.Implicits.global
+    Future { parser.parse(input, handler) }
+  }
+
+  def cycleLock(): Unit = {
+    lock.complete(Try(()))
+    lock = Promise[Unit]
+  }
+
+  def awaitNextEvent(): SAXEvent = {
+    val timeoutLimit = 3.seconds
+    val nextEvent = Await.result(promisedEvent.future, timeoutLimit)
+    promisedEvent = Promise[SAXEvent]
+    nextEvent
+  }
+
+  override def hasNext: Boolean = {
+    !depleted
+  }
+
+  override def next(): SAXEvent = {
     if (depleted) {
-      throw new IllegalStateException() //TODO
+      throw new NoSuchElementException("next on empty iterator")
     }
 
     if (!started) {
-      started = true
-      val handler = new Handler(extract)
-      import ExecutionContext.Implicits.global
-      Future { parser.parse(input, handler) }
+      log("start parsing", startParsing)
     } else {
-      lock.complete(Try(()))
-      lock = Promise[Unit]
+      log("cycling lock", cycleLock)
     }
 
-    val timeoutLimit = 3.seconds
-    val nextEl = Await.result(nextElement.future, timeoutLimit)
-    nextElement = Promise[SAXElement]
-    nextEl
+    log("awaiting next event", awaitNextEvent)
   }
 }
