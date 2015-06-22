@@ -20,9 +20,9 @@ case object DocumentEnd extends SAXEvent
 case class ParseError(ex: SAXParseException) extends SAXEvent
 case class ParseFatalError(ex: SAXParseException) extends SAXEvent
 case class ParseWarning(ex: SAXParseException) extends SAXEvent
-
-case class PrefixMappingStart(prefix: String) extends SAXEvent
+case class PrefixMappingStart(prefix: String, uri: String) extends SAXEvent
 case class PrefixMappingEnd(prefix: String) extends SAXEvent
+
 case class NotationDeclaration(name: String, publicId: String, systemId: String) extends SAXEvent
 case class IgnorableWhitespace(content: String) extends SAXEvent
 case class ProcessingInstruction(target: String, data: String) extends SAXEvent
@@ -36,8 +36,36 @@ class Handler(outside: SAXEvent ⇒ Future[Unit]) extends DefaultHandler {
     Await.ready(outside(event), timeoutLimit)
   }
 
+  override def notationDecl(name: String, publicId: String, systemId: String): Unit = {
+    passEvent(NotationDeclaration(name, publicId, systemId))
+  }
+
+  override def ignorableWhitespace(chars: Array[Char], start: Int, length: Int): Unit = {
+    passEvent(IgnorableWhitespace(new String(chars, start, length)))
+  }
+
+  override def processingInstruction(target: String, data: String): Unit = {
+    passEvent(ProcessingInstruction(target, data))
+  }
+
+  override def skippedEntity(name: String): Unit = {
+    passEvent(SkippedEntity(name))
+  }
+
+  override def unparsedEntityDecl(name: String, publicId: String, systemId: String, notationName: String): Unit = {
+    passEvent(UnparsedEntityDeclaration(name, publicId, systemId, notationName))
+  }
+
   override def characters(chars: Array[Char], start: Int, length: Int): Unit = {
     passEvent(Characters(new String(chars, start, length)))
+  }
+
+  override def startPrefixMapping(prefix: String, uri: String): Unit = {
+    passEvent(PrefixMappingStart(prefix, uri))
+  }
+
+  override def endPrefixMapping(prefix: String): Unit = {
+    passEvent(PrefixMappingEnd(prefix))
   }
 
   override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit = {

@@ -6,7 +6,7 @@ import org.scalatest._
 
 class SAXIteratorTest extends FunSpec with ShouldMatchers {
 
-  it("passes fatal errors during parsing") {
+  ignore("passes fatal errors during parsing") {
     val input: InputStream = getClass.getResourceAsStream("/fatalError.xml")
     val target = new SAXIterator(input)
 
@@ -17,6 +17,37 @@ class SAXIteratorTest extends FunSpec with ShouldMatchers {
     target.next match {
       case ParseFatalError(ex) ⇒
         ex.getMessage shouldBe "XML document structures must start and end within the same entity."
+    }
+  }
+
+  ignore("passes notation declarations during parsing")()
+  ignore("passes ignorable whitespace during parsing")()
+  ignore("passes processing instructions during parsing")()
+  ignore("passes skipped entities during parsing")()
+  ignore("passes unparsed entity declarations during parsing")()
+  ignore("passes prefix mappings during parsing") {
+    val input: InputStream = getClass.getResourceAsStream("/prefixMapping.xml")
+    val target = new SAXIterator(input)
+
+    target.hasNext shouldBe true
+    target.next match {
+      case DocumentStart ⇒
+    }
+
+    target.next match {
+      case PrefixMappingStart(prefix, uri) ⇒
+        prefix shouldBe "test"
+        uri shouldBe "http://example.com"
+    }
+
+    target.next match {
+      case ElementStart(uri, localName, qName, attributes) ⇒
+        qName shouldBe "html"
+    }
+
+    target.next match {
+      case PrefixMappingEnd(prefix) ⇒
+        prefix shouldBe "test"
     }
   }
 
