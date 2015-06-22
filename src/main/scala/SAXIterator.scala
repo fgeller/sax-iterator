@@ -102,8 +102,9 @@ class SAXIterator(input: InputStream) extends Iterator[SAXEvent] {
   }
 
   def cycleLock(): Unit = {
-    lock.complete(Try(()))
+    val oldLock = lock
     lock = Promise[Unit]
+    oldLock.complete(Try(()))
   }
 
   def awaitNextEvent(): SAXEvent = {
