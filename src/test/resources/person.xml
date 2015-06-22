@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Person>
+  <FirstName>Hans</FirstName>
+  <LastName>Schmitt</LastName>
+  <Address>
+    <Line1>42 Main Street</Line1>
+    <Line2>Second floor</Line2>
+    <City>Timbuktu</City>
+    <PostCode>33452</PostCode>
+    <Country>Algeria</Country>
+  </Address>
+</Person>
