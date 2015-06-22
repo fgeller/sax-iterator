@@ -8,6 +8,7 @@ import scala.concurrent.duration._
 import javax.xml.parsers.SAXParser
 import org.xml.sax.helpers.DefaultHandler
 import org.xml.sax.Attributes
+import org.xml.sax.SAXParseException
 
 trait SAXEvent
 
@@ -16,6 +17,17 @@ case class ElementStart(uri: String, localName: String, qName: String, attribute
 case class ElementEnd(uri: String, localName: String, qName: String) extends SAXEvent
 case object DocumentStart extends SAXEvent
 case object DocumentEnd extends SAXEvent
+case class ParseError(ex: SAXParseException) extends SAXEvent
+case class ParseFatalError(ex: SAXParseException) extends SAXEvent
+case class ParseWarning(ex: SAXParseException) extends SAXEvent
+
+case class PrefixMappingStart(prefix: String) extends SAXEvent
+case class PrefixMappingEnd(prefix: String) extends SAXEvent
+case class NotationDeclaration(name: String, publicId: String, systemId: String) extends SAXEvent
+case class IgnorableWhitespace(content: String) extends SAXEvent
+case class ProcessingInstruction(target: String, data: String) extends SAXEvent
+case class SkippedEntity(name: String) extends SAXEvent
+case class UnparsedEntityDeclaration(name: String, publicId: String, systemId: String, notationName: String) extends SAXEvent
 
 class Handler(outside: SAXEvent ⇒ Future[Unit]) extends DefaultHandler {
   val timeoutLimit = (290 * 365).days
@@ -42,6 +54,18 @@ class Handler(outside: SAXEvent ⇒ Future[Unit]) extends DefaultHandler {
 
   override def endDocument(): Unit = {
     passEvent(DocumentEnd)
+  }
+
+  override def error(ex: SAXParseException): Unit = {
+    passEvent(ParseError(ex))
+  }
+
+  override def fatalError(ex: SAXParseException): Unit = {
+    passEvent(ParseFatalError(ex))
+  }
+
+  override def warning(ex: SAXParseException): Unit = {
+    passEvent(ParseWarning(ex))
   }
 }
 

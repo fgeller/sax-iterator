@@ -6,7 +6,21 @@ import org.scalatest._
 
 class SAXIteratorTest extends FunSpec with ShouldMatchers {
 
-  it("sax iterator") {
+  it("passes fatal errors during parsing") {
+    val input: InputStream = getClass.getResourceAsStream("/fatalError.xml")
+    val target = new SAXIterator(input)
+
+    target.hasNext shouldBe true
+    target.next match {
+      case DocumentStart ⇒
+    }
+    target.next match {
+      case ParseFatalError(ex) ⇒
+        ex.getMessage shouldBe "XML document structures must start and end within the same entity."
+    }
+  }
+
+  it("passes basic xml parsing events") {
     val input: InputStream = getClass.getResourceAsStream("/note.xml")
     val target = new SAXIterator(input)
 
