@@ -1,0 +1,3 @@
+#+TITLE: sax-iterator
+
+Toy project to wrap a SAX content handler with a Scala iterator.
